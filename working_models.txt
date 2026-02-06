@@ -1,0 +1,29 @@
+C:\Users\ABHISHEK\OneDrive\Desktop\waste segregate\find_model.py:1: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+Listing models that support generateContent...
+Total candidate models: 30
+Testing model: models/gemini-2.5-flash...
+Traceback (most recent call last):
+  File "C:\Users\ABHISHEK\OneDrive\Desktop\waste segregate\find_model.py", line 15, in <module>
+    print(f"\u2705 SUCCESS with {model_name}: {response.text[:20]}...")
+  File "C:\Users\ABHISHEK\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 0: character maps to <undefined>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ABHISHEK\OneDrive\Desktop\waste segregate\find_model.py", line 18, in <module>
+    print(f"\u274c FAILED with {model_name}: {e}")
+  File "C:\Users\ABHISHEK\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' in position 0: character maps to <undefined>
