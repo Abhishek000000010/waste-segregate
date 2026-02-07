@@ -65,12 +65,11 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
             // 1. Get User Location with better timeout handling
             const position = await new Promise((resolve, reject) => {
                 navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true, // Try with GPS first
-                    timeout: 10000, // Wait 10 seconds
-                    maximumAge: 60000 // Reuse location from last minute
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 60000
                 });
             }).catch(() => {
-                // Try one more time with lower accuracy (faster/more reliable)
                 return new Promise((resolve, reject) => {
                     navigator.geolocation.getCurrentPosition(resolve, reject, {
                         enableHighAccuracy: false,
@@ -83,7 +82,6 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
             setUserLocation({ lat: latitude, lon: longitude });
 
             // 2. Fetch from OpenStreetMap (Overpass API)
-            // Query for recycling amenities within 10km (10000m)
             const query = `[out:json];node["amenity"="recycling"](around:10000,${latitude},${longitude});out;`;
             const encodedQuery = encodeURIComponent(query);
             const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodedQuery}`);
@@ -91,10 +89,9 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
 
             if (data.elements && data.elements.length > 0) {
                 const realCenters = data.elements.map(el => {
-                    // Calculate simple distance (Euclidean approx for display)
                     const dLat = el.lat - latitude;
                     const dLon = el.lon - longitude;
-                    const km = Math.sqrt(dLat * dLat + dLon * dLon) * 111; // Approx km
+                    const km = Math.sqrt(dLat * dLat + dLon * dLon) * 111;
 
                     return {
                         id: el.id,
@@ -104,6 +101,8 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
                         type: el.tags.recycling_type || "General Recycling",
                         open: el.tags.opening_hours || "Contact for hours",
                         phone: el.tags.phone || "Multiple locations",
+                        lat: el.lat,
+                        lon: el.lon,
                         accepts: Object.keys(el.tags)
                             .filter(k => k.startsWith('recycling:') && el.tags[k] === 'yes')
                             .map(k => k.replace('recycling:', '').charAt(0).toUpperCase() + k.replace('recycling:', '').slice(1))
@@ -111,20 +110,24 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
                     };
                 }).sort((a, b) => parseFloat(a.distance) - parseFloat(b.distance));
 
-                setCenters(realCenters.slice(0, 10)); // Top 10 nearest
+                setCenters(realCenters.slice(0, 10));
             } else {
-                // If no OSM data found nearby, we use expanded mock data for demo safety
                 setCenters(MOCK_CENTERS);
             }
         } catch (err) {
             console.error("Location/OSM Error:", err);
             setError("Location timed out. Showing nearby regional hubs.");
-            // Set a default center point (e.g., Delhi/Central) for the demo
             setUserLocation({ lat: 28.6139, lon: 77.2090 });
             setCenters(MOCK_CENTERS);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleStartNavigation = (center) => {
+        const dest = center.lat && center.lon ? `${center.lat},${center.lon}` : encodeURIComponent(`${center.name} ${center.address}`);
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+        window.open(url, '_blank');
     };
 
     // Simple priority sorting based on the item category
@@ -179,29 +182,34 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
                                 </div>
                             ) : (
                                 <>
-                                    {/* Map Preview Mock */}
-                                    <div className="w-full h-40 bg-slate-800 rounded-3xl relative overflow-hidden border border-white/5 mb-6">
+                                    {/* Real Map View */}
+                                    <div className="w-full h-48 bg-slate-800 rounded-3xl relative overflow-hidden border border-white/10 mb-6 group">
                                         {userLocation ? (
-                                            <div className="absolute inset-0 bg-[#1a2233]">
-                                                {/* Simple Grid to mimic a map for demo */}
-                                                <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-                                                <div className="absolute inset-0 flex items-center justify-center">
-                                                    <div className="relative">
-                                                        <div className="w-12 h-12 bg-emerald-500/20 rounded-full animate-ping" />
-                                                        <div className="w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-lg" />
-                                                    </div>
-                                                </div>
+                                            <div className="absolute inset-0">
+                                                <iframe
+                                                    title="Map"
+                                                    width="100%"
+                                                    height="100%"
+                                                    frameBorder="0"
+                                                    style={{ border: 0, filter: 'grayscale(1) invert(0.9) contrast(1.2)' }}
+                                                    src={`https://maps.google.com/maps?q=${userLocation.lat},${userLocation.lon}&z=14&output=embed&iwloc=near`}
+                                                    allowFullScreen
+                                                />
+                                                <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]" />
                                             </div>
                                         ) : (
                                             <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
                                                 <p className="text-[10px] text-gray-500 font-black">LOCATION DENIED</p>
                                             </div>
                                         )}
-                                        <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-2 px-4 rounded-full border border-white/10 flex items-center justify-between">
-                                            <span className="text-[10px] font-black text-white uppercase tracking-tighter">
-                                                {userLocation ? `LAT: ${userLocation.lat.toFixed(2)} LON: ${userLocation.lon.toFixed(2)}` : 'USING DEFAULT COORDINATES'}
+                                        <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md p-2 px-4 rounded-full border border-white/10 flex items-center justify-between z-10">
+                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-tighter">
+                                                {userLocation ? `LAT: ${userLocation.lat.toFixed(4)} LON: ${userLocation.lon.toFixed(4)}` : 'USING DEFAULT COORDINATES'}
                                             </span>
-                                            <Navigation size={12} className="text-emerald-500" />
+                                            <div className="flex items-center gap-1">
+                                                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                                <span className="text-[8px] font-black text-white/40 uppercase">LIVE</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -217,6 +225,7 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
                                         <CenterCard
                                             key={center.id}
                                             center={center}
+                                            onNavigate={() => handleStartNavigation(center)}
                                             isRecommended={
                                                 (filterType === 'Hazardous' && center.type.toLowerCase().includes('haz')) ||
                                                 (filterType === 'Recycle' && center.type.toLowerCase().includes('rec'))
@@ -233,7 +242,7 @@ const DropOffFinder = ({ isOpen, onClose, filterType }) => {
     );
 };
 
-function CenterCard({ center, isRecommended }) {
+function CenterCard({ center, isRecommended, onNavigate }) {
     return (
         <motion.div
             whileTap={{ scale: 0.98 }}
@@ -272,8 +281,11 @@ function CenterCard({ center, isRecommended }) {
                 </div>
             </div>
 
-            <button className="w-full mt-4 bg-emerald-500 py-3 rounded-2xl flex items-center justify-center gap-2 text-black font-black text-xs hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20">
-                <Navigation size={14} />
+            <button
+                onClick={onNavigate}
+                className="w-full mt-4 bg-emerald-500 py-3 rounded-2xl flex items-center justify-center gap-2 text-black font-black text-xs hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 group"
+            >
+                <Navigation size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                 START NAVIGATION
                 <ChevronRight size={14} />
             </button>

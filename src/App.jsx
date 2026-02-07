@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Camera, ClipboardList, BarChart3, Globe2, Leaf } from 'lucide-react'
+import { Camera, ClipboardList, BarChart3, Globe2, Leaf, Smartphone, X } from 'lucide-react'
 import ScanScreen from './components/ScanScreen'
 import ItemDetailScreen from './components/ItemDetailScreen'
 import InsightsScreen from './components/InsightsScreen'
@@ -12,6 +12,14 @@ function App() {
   const [activeTab, setActiveTab] = useState('scan')
   const [selectedItem, setSelectedItem] = useState(null)
   const [scanHistory, setScanHistory] = useState([])
+  const [showMobileNotice, setShowMobileNotice] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowMobileNotice(false)
+    }, 4500)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Handle navigation to details
   const handleShowDetails = (item, image = null) => {
@@ -43,6 +51,37 @@ function App() {
     <div className="min-h-screen bg-[#0a0f1e] text-white selection:bg-emerald-500/30 overflow-hidden relative">
       {/* Background Mesh */}
       <div className="fixed inset-0 bg-mesh opacity-50 pointer-events-none" />
+
+      {/* Mobile Experience Notice */}
+      <AnimatePresence>
+        {showMobileNotice && (
+          <motion.div
+            initial={{ y: -100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -100, opacity: 0 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-[92%] max-w-sm"
+          >
+            <div className="glass-card relative overflow-hidden p-5 bg-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.6)] border-white/10 group">
+              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-transparent to-blue-500/10 opacity-50" />
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                  <Smartphone className="animate-pulse" size={24} />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1">Tech Recommendation</h4>
+                  <p className="text-white font-bold text-xs leading-tight">Use mobile for the best recycling experience.</p>
+                </div>
+                <button
+                  onClick={() => setShowMobileNotice(false)}
+                  className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating Impact Dashboard */}
       <ImpactDashboard history={scanHistory} wasteKnowledge={WASTE_KNOWLEDGE} />

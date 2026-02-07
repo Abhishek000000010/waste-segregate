@@ -5,6 +5,10 @@ from PIL import Image
 import io
 import logging
 import os
+import dotenv
+
+# Load environment variables
+dotenv.load_dotenv()
 
 # Setup logging
 logging.basicConfig(
@@ -44,8 +48,11 @@ model = None
 
 try:
     from ultralytics import YOLO
-    model = YOLO("yolov8n.pt")
-    print("✅ YOLOv8 model loaded successfully.")
+    # Load model with absolute path for cloud stability
+    base_dir = os.path.dirname(__file__)
+    model_path = os.path.join(base_dir, "yolov8n.pt")
+    model = YOLO(model_path)
+    print(f"✅ YOLOv8 model loaded successfully from {model_path}.")
 except Exception as e:
     print(f"⚠️ Failed to load YOLOv8 model: {e}")
     pass  # Model will be None, DEMO_MODE will handle it
@@ -203,61 +210,139 @@ def health_check():
 
 
 # ─────────────────────────────────────────────────────────────
-# Google Gemini Setup
+# Google Gemini Setup (with Multi-Key Rotation)
 # ─────────────────────────────────────────────────────────────
-
 from dotenv import load_dotenv
+import random
 
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
+# Support multiple keys separated by commas
+RAW_KEYS = GEMINI_API_KEY.split(",")
+GEMINI_KEYS = [k.strip() for k in RAW_KEYS if k.strip() and k.strip() != "YOUR_API_KEY_HERE"]
+print(f"🔑 Loaded {len(GEMINI_KEYS)} Gemini keys from .env")
+current_key_index = 0
 
-try:
-    import google.generativeai as genai
-    genai.configure(api_key=GEMINI_API_KEY, transport='rest')
-    
-    # Dynamically find the best working model for this specific key
-    print("📡 Discovering available Gemini models...")
-    available_models = []
+def init_gemini_with_key(index):
+    """Initializes the Gemini model with a specific key from the pool."""
+    if index >= len(GEMINI_KEYS): return None
+    key = GEMINI_KEYS[index]
     try:
-        # Sort models to prefer flash/pro first in the discovery loop
-        all_models = list(genai.list_models())
-        preferences = ['2.5-flash', '2.0-flash', '1.5-flash', 'pro', 'flash']
-        all_models.sort(key=lambda x: next((i for i, p in enumerate(preferences) if p in x.name.lower()), 999))
+        import google.generativeai as genai
+        genai.configure(api_key=key)
         
-        for m in all_models:
-            if 'generateContent' in m.supported_generation_methods:
-                print(f"🔬 Testing candidate: {m.name}...")
-                try:
-                    import time
-                    time.sleep(0.5) # Avoid hitting discovery API rate limits
-                    test_m = genai.GenerativeModel(m.name)
-                    # Very tiny test to verify key permissions for this model
-                    test_m.generate_content("hi") 
-                    print(f"✅ Verified working: {m.name}")
-                    available_models.append(m.name)
-                    # Once we find a good flash or pro model, we can stop to save time
-                    if "flash" in m.name or "pro" in m.name:
-                        break
-                except Exception as test_err:
-                    print(f"❌ {m.name} failed verification: {test_err}")
-                    continue
+        # Determine the best model for this key
+        all_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Preference order for modern models
+        preferences = [
+            'models/gemini-1.5-flash', 
+            'models/gemini-1.5-pro', 
+            'models/gemini-pro',
+            'models/gemini-2.0-flash-exp'
+        ]
+        
+        selected_model = None
+        for pref in preferences:
+            for m in all_models:
+                if pref == m:
+                    selected_model = m
+                    break
+            if selected_model: break
+            
+        # Last resort fallback: any model with 'gemini' in its name
+        if not selected_model:
+            for m in all_models:
+                if 'gemini' in m.lower():
+                    selected_model = m
+                    break
+        
+        if not selected_model:
+            selected_model = 'models/gemini-1.5-flash' # Final hard fallback
+            
+        logger.info(f"📡 Selected model '{selected_model}' for Key #{index+1}")
+        return genai.GenerativeModel(selected_model)
     except Exception as e:
-        print(f"⚠️ Could not list models: {e}")
-        available_models = ['models/gemini-1.5-flash', 'models/gemini-pro', 'gemini-1.5-flash']
+        logger.error(f"⚠️ Initialization of Key #{index+1} failed: {e}")
+        return None
 
-    model_to_use = available_models[0] if available_models else None
-        
-    if model_to_use:
-        gemini_model = genai.GenerativeModel(model_to_use)
-        print(f"🚀 Eco-Scrutinize AI ACTIVE using: {model_to_use}")
-    else:
-        gemini_model = None
-        print("❌ CRITICAL: No working AI models found for this API key.")
+# Initial Setup
+gemini_model = init_gemini_with_key(current_key_index)
+
+async def call_gemini_robust(prompt_data):
+    """
+    Tries to call Gemini's generate_content using all available keys.
+    prompt_data can be a string (for chat) or a list (for detection with image).
+    """
+    global current_key_index, gemini_model
     
-except Exception as e:
-    gemini_model = None
-    logger.error(f"❌ Gemini Discovery Failed: {str(e)}")
-    print(f"❌ Gemini Discovery Error: {e}")
+    last_error = ""
+    # We will try every key in the list exactly once
+    for _ in range(len(GEMINI_KEYS)):
+        if not gemini_model:
+            gemini_model = init_gemini_with_key(current_key_index)
+            
+        if gemini_model:
+            try:
+                # Actual call
+                logger.info(f"🛰️ Calling Gemini with Key #{current_key_index+1}...")
+                response = gemini_model.generate_content(prompt_data)
+                return response.text
+            except Exception as e:
+                err_str = str(e).lower()
+                last_error = f"Key #{current_key_index+1} error: {str(e)}"
+                
+                # Check for rate limit OR forbidden OR permission issues OR not found
+                should_rotate = any(x in err_str for x in ["429", "quota", "exhausted", "403", "forbidden", "permission", "404", "not found", "invalid"])
+                
+                if should_rotate:
+                    logger.warning(f"🔄 Rotating due to: {last_error}")
+                    current_key_index = (current_key_index + 1) % len(GEMINI_KEYS)
+                    gemini_model = init_gemini_with_key(current_key_index)
+                else:
+                    # If it's a completely different error, log it and try to rotate anyway just in case
+                    logger.error(f"⚠️ Unexpected error with key #{current_key_index+1}: {str(e)}")
+                    current_key_index = (current_key_index + 1) % len(GEMINI_KEYS)
+                    gemini_model = init_gemini_with_key(current_key_index)
+        else:
+            # Current key failed init, move to next
+            current_key_index = (current_key_index + 1) % len(GEMINI_KEYS)
+            gemini_model = init_gemini_with_key(current_key_index)
+
+    raise Exception(f"All Gemini API keys failed or are exhausted. Last error: {last_error}")
+
+# ─────────────────────────────────────────────────────────────
+# Smart Fallback Metadata for YOLO (Prevents repetitive text)
+# ─────────────────────────────────────────────────────────────
+FALLBACK_INSIGHTS = {
+    "bottle": {
+        "transformation": "Shredded into high-performance polyester fibers for eco-apparel and athletic wear.",
+        "impact": "Recycling 1 ton of PET saves 3.8 barrels of oil.",
+        "fun_fact": "It takes just 5 bottles to make the fiber for one XL t-shirt!"
+    },
+    "can": {
+        "transformation": "Melted and rolled into infinite cycles of new aluminum sheets for beverages.",
+        "impact": "Uses 95% less energy than producing from raw bauxite ore.",
+        "fun_fact": "A recycled can could be back on a store shelf in just 60 days."
+    },
+    "phone": {
+        "transformation": "Dismantled to recover precious gold, silver, and copper for new high-tech circuitry.",
+        "impact": "Prevents toxic heavy metals from leaching into groundwater.",
+        "fun_fact": "One ton of old phones contains more gold than many gold mines!"
+    },
+    "default": {
+        "transformation": "Processed through advanced sorting to reclaim raw material for sustainable manufacturing.",
+        "impact": "Reduces landfill strain and preserves natural habitats for future generations.",
+        "fun_fact": "Most modern materials can be reborn multiple times if sorted correctly."
+    }
+}
+
+def get_fallback_metadata(class_name):
+    name = class_name.lower()
+    for key, data in FALLBACK_INSIGHTS.items():
+        if key in name:
+            return data
+    return FALLBACK_INSIGHTS["default"]
 
 
 @app.post("/detect", response_model=DetectionResponse)
@@ -265,6 +350,7 @@ async def detect_waste(image: UploadFile = File(...)):
     """
     Detect waste items using Gemini (primary) or YOLO (fallback).
     """
+    global current_key_index, gemini_model
     print(f"📥 Received detection request: {image.filename} ({image.content_type})")
     
     # Read image
@@ -311,8 +397,8 @@ async def detect_waste(image: UploadFile = File(...)):
             - Always prefer the full JSON structure.
             """
             
-            response = gemini_model.generate_content([prompt, pil_image])
-            content = response.text
+            # Use the robust caller to handle rotation across ALL keys
+            content = await call_gemini_robust([prompt, pil_image])
             print(f"📄 Detection Raw Gemini: {content}")
             
             # Robust extraction
@@ -346,15 +432,17 @@ async def detect_waste(image: UploadFile = File(...)):
                 print("🧠 Gemini returned empty items list.")
                 
         except Exception as e:
-            print(f"❌ Gemini Error type: {type(e).__name__}")
-            print(f"❌ Gemini Error message: {str(e)}")
-            # If it's a safety filter or quota error, we want to know
+            error_msg = f"❌ Gemini Error: {str(e)}"
+            print(error_msg)
+            logger.error(error_msg)
+            # Proceed to YOLO fallback
+            pass
 
 
     # ─── STRATEGY 2: YOLOv8 (Fallback) ───
     if model:
         try:
-            print("🚀 Starting YOLOv8 inference...")
+            print("🚀 Starting YOLOv8 fallback...")
             results = model(pil_image, device="cpu", verbose=False)
             
             detected_items = []
@@ -373,12 +461,8 @@ async def detect_waste(image: UploadFile = File(...)):
                         
                         x1, y1, x2, y2 = box.xyxy[0].tolist()
                         
-                        # Enrich with basic metadata for YOLO findings
-                        item_meta = {
-                            "transformation": f"Can be processed into raw material for new {class_name} manufacturing.",
-                            "impact": f"Recycling {class_name} saves energy compared to producing from virgin materials.",
-                            "fun_fact": f"High quality {class_name} recovery is essential for a circular economy."
-                        }
+                        # Enrich with SMART metadata for YOLO findings
+                        item_meta = get_fallback_metadata(class_name)
 
                         detected_items.append(DetectedItem(
                             id=len(detected_items) + 1,
@@ -389,16 +473,20 @@ async def detect_waste(image: UploadFile = File(...)):
                             bbox=BoundingBox(x=int(x1), y=int(y1), w=int(x2-x1), h=int(y2-y1)),
                             metadata=item_meta
                         ))
-                    except: continue
+                    except Exception as box_err:
+                        print(f"⚠️ Box processing error: {box_err}")
+                        continue
             
             if detected_items:
                 detected_items.sort(key=lambda x: x.confidence, reverse=True)
+                print(f"✅ YOLO Found: {[d.itemType for d in detected_items]}")
                 return DetectionResponse(items=detected_items[:3])
             
             print("🚀 YOLO found nothing.")
             
         except Exception as e:
             print(f"❌ YOLO Error: {e}")
+            logger.error(f"YOLO fallback failed: {e}")
 
     if DEMO_MODE:
         print("🎁 Returning FALLBACK_DEMO_RESPONSE")
@@ -411,6 +499,7 @@ async def chat_assistant(request: ChatRequest):
     """
     AI Assistant to answer waste related questions using Gemini.
     """
+    global current_key_index, gemini_model
     if not gemini_model or GEMINI_API_KEY == "YOUR_API_KEY_HERE":
         return ChatResponse(
             response="I'm currently in offline mode. Please check my API configuration.",
@@ -432,8 +521,8 @@ async def chat_assistant(request: ChatRequest):
         }}
         """
         
-        response = gemini_model.generate_content(prompt)
-        content = response.text
+        # Use the robust caller to handle rotation across ALL keys
+        content = await call_gemini_robust(prompt)
         print(f"📄 Raw Gemini Response: {content}")
         
         # Robust JSON extraction

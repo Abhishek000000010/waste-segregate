@@ -239,21 +239,25 @@ const ItemDetailScreen = ({ item }) => {
                         <div className="flex items-center justify-center gap-4 sm:gap-8 mb-8 relative z-10 w-full">
                             {/* Original Item Illustration */}
                             <div className="group relative">
-                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#131b27] border border-white/10 flex items-center justify-center overflow-hidden">
-                                    {displayData.knowledgeImage && !knowledgeImgError ? (
+                                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#131b27] border border-white/10 flex items-center justify-center overflow-hidden shadow-inner">
+                                    {displayData.knowledgeImage ? (
                                         <img
                                             src={displayData.knowledgeImage}
                                             alt="Material"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                            onError={() => setKnowledgeImgError(true)}
+                                            className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                setKnowledgeImgError(true);
+                                            }}
                                         />
-                                    ) : (
+                                    ) : null}
+                                    {(knowledgeImgError || !displayData.knowledgeImage) && (
                                         <div className="text-gray-500 opacity-50">
                                             {displayData.fallbackPrimaryIcon}
                                         </div>
                                     )}
                                 </div>
-                                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md text-[8px] font-black text-white px-2 py-0.5 rounded-full border border-white/10 whitespace-nowrap">
+                                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-md text-[8px] font-black text-white px-2 py-1 rounded-full border border-white/10 whitespace-nowrap shadow-xl">
                                     PRIMARY
                                 </span>
                             </div>
@@ -271,21 +275,25 @@ const ItemDetailScreen = ({ item }) => {
                             {/* Transformed Result */}
                             <div className="group relative">
                                 <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#131b27] border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.15)] overflow-hidden">
-                                    {displayData.transformedImage && !transformedImgError ? (
+                                    {displayData.transformedImage ? (
                                         <img
                                             src={displayData.transformedImage}
                                             alt="Transformed"
-                                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                                            onError={() => setTransformedImgError(true)}
+                                            className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-500"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                setTransformedImgError(true);
+                                            }}
                                         />
-                                    ) : (
+                                    ) : null}
+                                    {(transformedImgError || !displayData.transformedImage) && (
                                         <div className="relative z-10 flex flex-col items-center">
                                             {displayData.fallbackSecondaryIcon}
                                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.2)_0%,transparent_70%)] animate-pulse" />
                                         </div>
                                     )}
                                 </div>
-                                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[8px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
+                                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-emerald-500 text-black text-[8px] font-black px-2 py-1 rounded-full whitespace-nowrap shadow-xl">
                                     SECOND LIFE
                                 </span>
                             </div>

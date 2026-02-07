@@ -3,7 +3,7 @@ import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, RefreshCcw, ArrowRight, ShieldCheck, Info, Leaf, Trash2, Recycle, AlertTriangle, Upload, Mic, MessageSquare, X, Volume2 } from 'lucide-react';
 
-const API_URL = 'https://major-worlds-lay.loca.lt/detect';
+const API_URL = 'http://localhost:8000/detect';
 
 const BIN_CONFIG = {
     Recycle: {
@@ -74,7 +74,7 @@ const ScanScreen = ({ onShowDetails }) => {
         setIsThinking(true);
         try {
             console.log("🗣️ Sending query to AI:", query);
-            const response = await fetch('https://major-worlds-lay.loca.lt/chat', {
+            const response = await fetch('http://localhost:8000/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -254,7 +254,7 @@ const ScanScreen = ({ onShowDetails }) => {
                                     </div>
                                 </div>
                                 <div className="mt-8 text-center">
-                                    <h2 className="text-xl font-bold text-white tracking-wide">GEMINI SEARCHING...</h2>
+                                    <h2 className="text-xl font-bold text-white tracking-wide">SCRUTINIZING DATA...</h2>
                                     <p className="text-gray-400 text-sm mt-1">Cross-referencing Global Disposal Standards</p>
                                 </div>
                                 {/* Scanning line */}
