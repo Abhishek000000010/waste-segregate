@@ -9,6 +9,7 @@
 * **Why?** The backend must load the 12MB+ YOLOv8 model weights into RAM and establish a secure gRPC handshake with Google Gemini servers.
 * **Subsequent Scans:** Once the model is "warmed up," subsequent scans typically process within **10-15 seconds**.
 
+Prototype Link : https://waste-segregate-app.vercel.app/
 ---
 
 ## ✨ Key Features
