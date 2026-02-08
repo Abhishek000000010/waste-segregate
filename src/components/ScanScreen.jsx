@@ -3,7 +3,7 @@ import Webcam from 'react-webcam';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, RefreshCcw, ArrowRight, ShieldCheck, Info, Leaf, Trash2, Recycle, AlertTriangle, Upload, Mic, MessageSquare, X, Volume2 } from 'lucide-react';
 
-const API_URL = 'http://localhost:8000/detect';
+const API_URL = 'https://waste-segregate.onrender.com/detect';
 
 const BIN_CONFIG = {
     Recycle: {
@@ -74,7 +74,7 @@ const ScanScreen = ({ onShowDetails }) => {
         setIsThinking(true);
         try {
             console.log("🗣️ Sending query to AI:", query);
-            const response = await fetch('http://localhost:8000/chat', {
+            const response = await fetch('https://waste-segregate.onrender.com/chat', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
